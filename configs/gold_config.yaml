@@ -1,0 +1,484 @@
+# F1 Race Intelligence Lakehouse - Gold Layer Configuration
+# Enterprise-grade configuration for business intelligence and analytics
+
+# Gold Layer Settings
+gold:
+  layer_name: "gold"
+  description: "Business-ready F1 analytics and intelligence layer"
+  
+  # Data Lake Paths
+  base_path: "data/gold"
+  
+  # Source Configuration
+  source:
+    silver_layer: "data/silver"
+    tables: ["races", "drivers", "constructors", "circuits", "performance", "pit_analysis"]
+
+# Business Intelligence Tables
+tables:
+  driver_statistics:
+    source_table: "silver.performance"
+    target_table: "gold.driver_statistics"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["driverId", "year"]
+    
+    # Aggregation Logic
+    aggregations:
+      - group_by: ["driverId", "forename", "surname", "nationality", "constructorId", "constructorName", "year"]
+        metrics:
+          - name: "total_races"
+            function: "count"
+            column: "raceId"
+            
+          - name: "total_wins"
+            function: "sum"
+            column: "podium_finish"
+            condition: "position = 1"
+            
+          - name: "total_podiums"
+            function: "sum"
+            column: "podium_finish"
+            
+          - name: "total_points"
+            function: "sum"
+            column: "points"
+            
+          - name: "average_finish_position"
+            function: "avg"
+            column: "position"
+            filter: "finished_race = true"
+            
+          - name: "dnf_count"
+            function: "sum"
+            column: "dnf_status"
+            
+          - name: "fastest_laps"
+            function: "sum"
+            column: "fastestLap"
+            condition: "fastestLap = 1"
+            
+          - name: "career_best_position"
+            function: "min"
+            column: "position"
+            
+          - name: "career_worst_position"
+            function: "max"
+            column: "position"
+            
+          - name: "consistency_score"
+            function: "custom"
+            expression: "1 - (STDDEV(position) / AVG(position))"
+            description: "Higher score indicates more consistent performance"
+    
+    # Derived Metrics
+    derived_metrics:
+      - name: "win_rate"
+        expression: "total_wins / total_races"
+        
+      - name: "podium_rate"
+        expression: "total_podiums / total_races"
+        
+      - name: "dnf_rate"
+        expression: "dnf_count / total_races"
+        
+      - name: "points_per_race"
+        expression: "total_points / total_races"
+        
+      - name: "finish_rate"
+        expression: "(total_races - dnf_count) / total_races"
+
+  constructor_rankings:
+    source_table: "silver.performance"
+    target_table: "gold.constructor_rankings"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["constructorId", "year"]
+    
+    aggregations:
+      - group_by: ["constructorId", "constructorName", "constructorNationality", "year"]
+        metrics:
+          - name: "total_races"
+            function: "count"
+            column: "raceId"
+            
+          - name: "total_wins"
+            function: "sum"
+            column: "podium_finish"
+            condition: "position = 1"
+            
+          - name: "total_podiums"
+            function: "sum"
+            column: "podium_finish"
+            
+          - name: "total_points"
+            function: "sum"
+            column: "points"
+            
+          - name: "driver_count"
+            function: "count_distinct"
+            column: "driverId"
+            
+          - name: "average_team_position"
+            function: "avg"
+            column: "position"
+            filter: "finished_race = true"
+    
+    derived_metrics:
+      - name: "team_win_rate"
+        expression: "total_wins / total_races"
+        
+      - name: "team_podium_rate"
+        expression: "total_podiums / total_races"
+        
+      - name: "points_per_race"
+        expression: "total_points / total_races"
+        
+      - name: "dominance_score"
+        expression: "(total_wins * 25 + total_podiums * 18 + total_points) / total_races"
+        description: "Composite score measuring team dominance"
+
+  lap_time_trends:
+    source_table: "bronze.lap_times"
+    target_table: "gold.lap_time_trends"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["raceId", "driverId", "lap"]
+    
+    aggregations:
+      - group_by: ["raceId", "year", "driverId", "constructorId"]
+        metrics:
+          - name: "fastest_lap_time"
+            function: "min"
+            column: "milliseconds"
+            
+          - name: "slowest_lap_time"
+            function: "max"
+            column: "milliseconds"
+            
+          - name: "average_lap_time"
+            function: "avg"
+            column: "milliseconds"
+            
+          - name: "total_laps"
+            function: "count"
+            column: "lap"
+            
+          - name: "lap_time_stddev"
+            function: "stddev"
+            column: "milliseconds"
+    
+    derived_metrics:
+      - name: "pace_consistency"
+        expression: "1 - (lap_time_stddev / average_lap_time)"
+        
+      - name: "lap_degradation_rate"
+        expression: "(slowest_lap_time - fastest_lap_time) / total_laps"
+        
+      - name: "pace_improvement_potential"
+        expression: "(average_lap_time - fastest_lap_time) / average_lap_time"
+
+  pit_stop_efficiency:
+    source_table: "silver.pit_analysis"
+    target_table: "gold.pit_stop_efficiency"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["constructorId", "driverId", "year"]
+    
+    aggregations:
+      - group_by: ["raceId", "year", "driverId", "constructorId"]
+        metrics:
+          - name: "total_pit_stops"
+            function: "count"
+            column: "stop"
+            
+          - name: "fastest_pit_time"
+            function: "min"
+            column: "milliseconds"
+            
+          - name: "slowest_pit_time"
+            function: "max"
+            column: "milliseconds"
+            
+          - name: "average_pit_time"
+            function: "avg"
+            column: "milliseconds"
+            
+          - name: "total_pit_time"
+            function: "sum"
+            column: "milliseconds"
+    
+    derived_metrics:
+      - name: "pit_efficiency_score"
+        expression: "10000 / average_pit_time"  # Lower time = higher score
+        
+      - name: "pit_consistency"
+        expression: "1 - ((slowest_pit_time - fastest_pit_time) / average_pit_time)"
+        
+      - name: "time_lost_in_pits"
+        expression: "total_pit_time / 1000.0"  # Convert to seconds
+
+  race_pace_analysis:
+    source_tables: ["silver.performance", "bronze.lap_times"]
+    target_table: "gold.race_pace_analysis"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["raceId", "driverId"]
+    
+    joins:
+      - type: "left"
+        left_table: "silver.performance"
+        right_table: "bronze.lap_times"
+        condition: "performance.raceId = lap_times.raceId AND performance.driverId = lap_times.driverId"
+    
+    aggregations:
+      - group_by: ["raceId", "year", "driverId", "constructorId", "position"]
+        metrics:
+          - name: "average_race_lap_time"
+            function: "avg"
+            column: "lap_times.milliseconds"
+            
+          - name: "fastest_race_lap"
+            function: "min"
+            column: "lap_times.milliseconds"
+            
+          - name: "total_race_laps"
+            function: "max"
+            column: "lap_times.lap"
+            
+          - name: "race_finish_time"
+            function: "custom"
+            expression: "average_race_lap_time * total_race_laps"
+
+  championship_standings:
+    source_table: "gold.driver_statistics"
+    target_table: "gold.championship_standings"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["year", "championship_position"]
+    
+    transformations:
+      - type: "rank_calculation"
+        rank_column: "championship_position"
+        order_by: "total_points DESC, total_wins DESC, total_podiums DESC"
+        partition_by: "year"
+    
+    derived_metrics:
+      - name: "points_gap_to_leader"
+        expression: "total_points - FIRST_VALUE(total_points) OVER (PARTITION BY year ORDER BY total_points DESC)"
+        
+      - name: "championship_battle_status"
+        expression: "CASE WHEN points_gap_to_leader <= 25 THEN 'Contender' WHEN points_gap_to_leader <= 50 THEN 'Dark Horse' ELSE 'Out of Contentions' END"
+
+  qualifying_vs_race:
+    source_tables: ["bronze.qualifying", "silver.performance"]
+    target_table: "gold.qualifying_vs_race"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["raceId", "driverId"]
+    
+    joins:
+      - type: "inner"
+        left_table: "bronze.qualifying"
+        right_table: "silver.performance"
+        condition: "qualifying.raceId = performance.raceId AND qualifying.driverId = performance.driverId"
+    
+    transformations:
+      - type: "position_comparison"
+        qualifying_position: "position"
+        race_position: "position"
+    
+    derived_metrics:
+      - name: "position_change"
+        expression: "qualifying.position - race.position"
+        
+      - name: "overtakes_made"
+        expression: "CASE WHEN qualifying.position > race.position THEN qualifying.position - race.position ELSE 0 END"
+        
+      - name: "positions_lost"
+        expression: "CASE WHEN qualifying.position < race.position THEN race.position - qualifying.position ELSE 0 END"
+        
+      - name: "qualifying_performance_score"
+        expression: "CASE WHEN qualifying.position <= 3 THEN 10 WHEN qualifying.position <= 10 THEN 5 ELSE 1 END"
+
+  driver_consistency:
+    source_table: "gold.driver_statistics"
+    target_table: "gold.driver_consistency"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["driverId", "year"]
+    
+    transformations:
+      - type: "rolling_calculations"
+        window_size: 5  # Last 5 races
+        metrics:
+          - name: "rolling_average_position"
+            function: "avg"
+            column: "average_finish_position"
+            
+          - name: "rolling_points"
+            function: "sum"
+            column: "total_points"
+            
+          - name: "position_variance"
+            function: "variance"
+            column: "average_finish_position"
+    
+    derived_metrics:
+      - name: "consistency_rating"
+        expression: "CASE WHEN position_variance < 2 THEN 'Very Consistent' WHEN position_variance < 5 THEN 'Consistent' WHEN position_variance < 10 THEN 'Inconsistent' ELSE 'Very Inconsistent' END"
+        
+      - name: "form_trend"
+        expression: "CASE WHEN rolling_average_position < 10 THEN 'Good Form' WHEN rolling_average_position < 15 THEN 'Average Form' ELSE 'Poor Form' END"
+
+# Analytics Configuration
+analytics:
+  # Statistical Analysis
+  statistics:
+    enabled: true
+    methods: ["correlation", "regression", "clustering", "time_series"]
+    
+  # Performance Metrics
+  performance:
+    enabled: true
+    benchmarks:
+      - name: "lap_time_benchmarks"
+        description: "Fastest lap times by circuit and year"
+      - name: "pit_stop_benchmarks"
+        description: "Pit stop efficiency by team"
+      - name: "driver_performance_benchmarks"
+        description: "Driver performance by season"
+
+# Machine Learning Configuration
+ml:
+  enabled: true
+  
+  # Feature Engineering
+  features:
+    - name: "driver_form_features"
+      source: "gold.driver_statistics"
+      features: ["win_rate", "podium_rate", "consistency_score", "points_per_race"]
+      
+    - name: "constructor_features"
+      source: "gold.constructor_rankings"
+      features: ["team_win_rate", "dominance_score", "points_per_race"]
+      
+    - name: "race_context_features"
+      source: "silver.races"
+      features: ["circuit_type", "weather_conditions", "season_phase"]
+  
+  # Model Types
+  models:
+    - name: "race_winner_prediction"
+      type: "classification"
+      algorithm: "xgboost"
+      target: "race_winner"
+      
+    - name: "podium_prediction"
+      type: "classification"
+      algorithm: "random_forest"
+      target: "podium_finish"
+      
+    - name: "lap_time_forecasting"
+      type: "regression"
+      algorithm: "linear_regression"
+      target: "lap_time"
+      
+    - name: "driver_clustering"
+      type: "clustering"
+      algorithm: "kmeans"
+      target: "driver_segment"
+
+# Dashboard Configuration
+dashboards:
+  # Power BI Integration
+  powerbi:
+    enabled: true
+    workspace: "F1 Race Intelligence"
+    datasets:
+      - name: "Driver Intelligence"
+        tables: ["gold.driver_statistics", "gold.driver_consistency"]
+      - name: "Constructor Analytics"
+        tables: ["gold.constructor_rankings"]
+      - name: "Race Analysis"
+        tables: ["gold.race_pace_analysis", "gold.lap_time_trends"]
+      - name: "Pit Stop Strategy"
+        tables: ["gold.pit_stop_efficiency"]
+      - name: "Championship Standings"
+        tables: ["gold.championship_standings"]
+
+# Data Quality Configuration
+quality:
+  enabled: true
+  fail_on_error: false
+  warning_threshold: 1.0
+  
+  checks:
+    - name: "completeness_check"
+      critical_columns: ["driverId", "year", "total_points"]
+      threshold: 0.0
+      
+    - name: "business_logic_check"
+      rules:
+        - table: "gold.driver_statistics"
+          rule: "total_races >= total_wins"
+          description: "Total races must be >= total wins"
+          
+        - table: "gold.constructor_rankings"
+          rule: "total_points >= 0"
+          description: "Points cannot be negative"
+
+# Performance Optimization
+optimization:
+  # Materialized Views
+  materialized_views:
+    enabled: true
+    views:
+      - name: "current_season_standings"
+        query: "SELECT * FROM gold.championship_standings WHERE year = YEAR(CURRENT_DATE)"
+        refresh_schedule: "daily"
+        
+      - name: "driver_performance_trends"
+        query: "SELECT driverId, year, win_rate, podium_rate FROM gold.driver_statistics ORDER BY year, win_rate DESC"
+        refresh_schedule: "weekly"
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  metrics_collection: true
+  
+  performance_thresholds:
+    max_aggregation_time_minutes: 60
+    max_memory_usage_gb: 16
+    data_freshness_hours: 48
+
+# API Configuration
+api:
+  enabled: true
+  
+  endpoints:
+    - name: "driver_stats"
+      path: "/api/v1/drivers/{driver_id}/stats"
+      method: "GET"
+      
+    - name: "constructor_rankings"
+      path: "/api/v1/constructors/rankings"
+      method: "GET"
+      
+    - name: "race_predictions"
+      path: "/api/v1/predictions/race/{race_id}"
+      method: "POST"
+
+# Retention Policy
+retention:
+  enabled: true
+  default_retention_days: 1825  # 5 years
+  
+  time_travel:
+    enabled: true
+    default_retention_hours: 720  # 30 days
+    
+  vacuum:
+    enabled: true
+    retention_hours: 720
+    schedule: "monthly"

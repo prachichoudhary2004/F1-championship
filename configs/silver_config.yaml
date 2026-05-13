@@ -1,0 +1,311 @@
+# F1 Race Intelligence Lakehouse - Silver Layer Configuration
+# Enterprise-grade configuration for data transformation and cleansing
+
+# Silver Layer Settings
+silver:
+  layer_name: "silver"
+  description: "Cleansed and standardized F1 data layer"
+  
+  # Data Lake Paths
+  base_path: "data/silver"
+  
+  # Source Configuration
+  source:
+    bronze_layer: "data/bronze"
+    tables: ["races", "drivers", "constructors", "circuits", "results", "lap_times", "pit_stops", "qualifying"]
+
+# Table Definitions
+tables:
+  races:
+    source_table: "bronze.races"
+    target_table: "silver.races"
+    format: "delta"
+    partition_by: ["year", "round"]
+    z_order_by: ["raceId", "year", "round"]
+    
+    # Transformation Rules
+    transformations:
+      - type: "clean_string"
+        columns: ["name", "circuitId"]
+        
+      - type: "standardize_timestamp"
+        columns: ["date", "time"]
+        
+      - type: "validate_range"
+        column: "year"
+        min_value: 1950
+        max_value: 2030
+        
+      - type: "add_derived_columns"
+        columns:
+          - name: "race_duration_minutes"
+            expression: "CASE WHEN time IS NOT NULL THEN HOUR(time) * 60 + MINUTE(time) + SECOND(time) / 60.0 ELSE NULL END"
+            
+          - name: "race_season_phase"
+            expression: "CASE WHEN round <= 5 THEN 'Early' WHEN round <= 15 THEN 'Mid' ELSE 'Late' END"
+
+  drivers:
+    source_table: "bronze.drivers"
+    target_table: "silver.drivers"
+    format: "delta"
+    partition_by: ["nationality"]
+    z_order_by: ["driverId", "surname"]
+    
+    transformations:
+      - type: "clean_string"
+        columns: ["forename", "surname", "nationality"]
+        
+      - type: "standardize_code"
+        column: "code"
+        
+      - type: "add_derived_columns"
+        columns:
+          - name: "full_name"
+            expression: "CONCAT(forename, ' ', surname)"
+            
+          - name: "driver_age_group"
+            expression: "CASE WHEN dob > '2000-01-01' THEN 'Gen Z' WHEN dob > '1980-01-01' THEN 'Millennial' ELSE 'Gen X/Boomer' END"
+
+  constructors:
+    source_table: "bronze.constructors"
+    target_table: "silver.constructors"
+    format: "delta"
+    partition_by: ["nationality"]
+    z_order_by: ["constructorId", "name"]
+    
+    transformations:
+      - type: "clean_string"
+        columns: ["name", "nationality"]
+        
+      - type: "standardize_name"
+        column: "name"
+
+  circuits:
+    source_table: "bronze.circuits"
+    target_table: "silver.circuits"
+    format: "delta"
+    partition_by: ["country"]
+    z_order_by: ["circuitId", "name"]
+    
+    transformations:
+      - type: "clean_string"
+        columns: ["name", "location", "country"]
+        
+      - type: "extract_coordinates"
+        columns: ["lat", "lng"]
+        
+      - type: "add_derived_columns"
+        columns:
+          - name: "circuit_region"
+            expression: "CASE WHEN country IN ('UK', 'Germany', 'Italy', 'France', 'Spain', 'Belgium') THEN 'Europe' WHEN country IN ('USA', 'Canada', 'Mexico', 'Brazil', 'Argentina') THEN 'Americas' WHEN country IN ('Japan', 'China', 'Singapore', 'Malaysia', 'Bahrain', 'UAE') THEN 'Asia-Pacific' ELSE 'Other' END"
+
+  performance:
+    source_tables: ["bronze.results", "bronze.races", "bronze.drivers", "bronze.constructors"]
+    target_table: "silver.performance"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["raceId", "driverId", "constructorId"]
+    
+    # Join Logic
+    joins:
+      - type: "inner"
+        left_table: "results"
+        right_table: "races"
+        condition: "results.raceId = races.raceId"
+        
+      - type: "inner"
+        left_table: "results"
+        right_table: "drivers"
+        condition: "results.driverId = drivers.driverId"
+        
+      - type: "inner"
+        left_table: "results"
+        right_table: "constructors"
+        condition: "results.constructorId = constructors.constructorId"
+    
+    transformations:
+      - type: "clean_numeric"
+        columns: ["position", "points", "laps"]
+        
+      - type: "validate_range"
+        columns:
+          - name: "position"
+            min_value: 1
+            max_value: 50
+            
+          - name: "points"
+            min_value: 0
+            max_value: 50
+            
+          - name: "laps"
+            min_value: 1
+            max_value: 100
+        
+      - type: "add_derived_columns"
+        columns:
+          - name: "finished_race"
+            expression: "CASE WHEN positionText IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20') THEN true ELSE false END"
+            
+          - name: "podium_finish"
+            expression: "CASE WHEN position IN (1, 2, 3) THEN true ELSE false END"
+            
+          - name: "dnf_status"
+            expression: "CASE WHEN positionText = 'R' OR positionText = 'D' OR positionText = 'F' THEN true ELSE false END"
+
+  pit_analysis:
+    source_tables: ["bronze.pit_stops", "bronze.races", "bronze.drivers"]
+    target_table: "silver.pit_analysis"
+    format: "delta"
+    partition_by: ["year"]
+    z_order_by: ["raceId", "driverId", "stop"]
+    
+    joins:
+      - type: "inner"
+        left_table: "pit_stops"
+        right_table: "races"
+        condition: "pit_stops.raceId = races.raceId"
+        
+      - type: "inner"
+        left_table: "pit_stops"
+        right_table: "drivers"
+        condition: "pit_stops.driverId = drivers.driverId"
+    
+    transformations:
+      - type: "clean_numeric"
+        columns: ["stop", "milliseconds"]
+        
+      - type: "validate_range"
+        columns:
+          - name: "stop"
+            min_value: 1
+            max_value: 10
+            
+          - name: "milliseconds"
+            min_value: 1000
+            max_value: 300000  # 5 minutes max
+        
+      - type: "add_derived_columns"
+        columns:
+          - name: "pit_duration_seconds"
+            expression: "milliseconds / 1000.0"
+            
+          - name: "pit_time_category"
+            expression: "CASE WHEN milliseconds < 20000 THEN 'Fast' WHEN milliseconds < 25000 THEN 'Normal' WHEN milliseconds < 30000 THEN 'Slow' ELSE 'Very Slow' END"
+
+# Transformation Configuration
+transformation:
+  # String Cleaning
+  string_cleaning:
+    trim_whitespace: true
+    remove_special_chars: false
+    normalize_case: "title"  # lower, upper, title, none
+    
+  # Numeric Validation
+  numeric_validation:
+    allow_nulls: true
+    default_value: null
+    
+  # Date/Time Standardization
+  datetime_standardization:
+    input_formats: ["yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd HH:mm:ss"]
+    output_format: "yyyy-MM-dd HH:mm:ss"
+    timezone: "UTC"
+
+# Data Quality Configuration
+quality:
+  enabled: true
+  fail_on_error: false
+  warning_threshold: 2.0
+  
+  checks:
+    - name: "null_check"
+      critical_columns: ["raceId", "driverId", "constructorId"]
+      threshold: 0.0
+      
+    - name: "referential_integrity"
+      checks:
+        - table: "silver.performance"
+          foreign_keys:
+            - column: "raceId"
+              reference: "silver.races.raceId"
+            - column: "driverId"
+              reference: "silver.drivers.driverId"
+            - column: "constructorId"
+              reference: "silver.constructors.constructorId"
+      
+    - name: "business_rules"
+      rules:
+        - table: "silver.performance"
+          rule: "position >= 1 OR position IS NULL"
+          description: "Position must be positive or null"
+          
+        - table: "silver.pit_analysis"
+          rule: "milliseconds > 0"
+          description: "Pit stop duration must be positive"
+
+# Performance Optimization
+optimization:
+  # Partitioning Strategy
+  partitioning:
+    max_partition_size_mb: 128
+    min_partition_count: 4
+    
+  # Z-ordering
+  z_ordering:
+    enabled: true
+    columns: ["raceId", "year"]
+    
+  # Caching
+  caching:
+    enabled: true
+    tables_to_cache: ["silver.races", "silver.drivers", "silver.constructors"]
+    cache_strategy: "MEMORY_AND_DISK"
+
+# Incremental Processing
+incremental:
+  enabled: true
+  
+  # Change Data Capture
+  cdc:
+    enabled: true
+    watermark_column: "ingestion_timestamp"
+    
+  # Merge Strategy
+  merge_strategy:
+    type: "upsert"
+    merge_keys: ["raceId", "driverId", "constructorId"]
+    update_columns: ["position", "points", "laps", "positionText"]
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  metrics_collection: true
+  
+  performance_thresholds:
+    max_transformation_time_minutes: 45
+    max_memory_usage_gb: 12
+    data_freshness_hours: 24
+
+# Error Handling
+error_handling:
+  max_retries: 3
+  retry_delay_seconds: 60
+  dead_letter_path: "data/silver/dead_letter"
+  
+  quarantine:
+    enabled: true
+    path: "data/silver/quarantine"
+
+# Retention Policy
+retention:
+  enabled: true
+  default_retention_days: 730  # 2 years
+  
+  time_travel:
+    enabled: true
+    default_retention_hours: 336  # 14 days
+    
+  vacuum:
+    enabled: true
+    retention_hours: 336
+    schedule: "bi-weekly"

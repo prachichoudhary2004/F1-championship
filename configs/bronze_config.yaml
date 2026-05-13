@@ -1,0 +1,182 @@
+# F1 Race Intelligence Lakehouse - Bronze Layer Configuration
+# Enterprise-grade configuration for raw data ingestion
+
+# Bronze Layer Settings
+bronze:
+  layer_name: "bronze"
+  description: "Raw F1 data ingestion layer with minimal transformation"
+  
+  # Data Lake Paths
+  base_path: "data/bronze"
+  
+  # Source Configuration
+  source:
+    raw_data_path: "data/raw"
+    file_formats: ["csv", "json"]
+    
+  # Table Definitions
+  tables:
+    races:
+      source_file: "races.csv"
+      target_table: "bronze.races"
+      format: "delta"
+      partition_by: ["year"]
+      z_order_by: ["raceId", "year"]
+      
+    drivers:
+      source_file: "drivers.json"
+      target_table: "bronze.drivers"
+      format: "delta"
+      partition_by: []
+      z_order_by: ["driverId"]
+      
+    constructors:
+      source_file: "constructors.json"
+      target_table: "bronze.constructors"
+      format: "delta"
+      partition_by: []
+      z_order_by: ["constructorId"]
+      
+    circuits:
+      source_file: "circuits.csv"
+      target_table: "bronze.circuits"
+      format: "delta"
+      partition_by: []
+      z_order_by: ["circuitId"]
+      
+    results:
+      source_file: "results.json"
+      target_table: "bronze.results"
+      format: "delta"
+      partition_by: ["raceId"]
+      z_order_by: ["resultId", "raceId"]
+      
+    lap_times:
+      source_file: "lap_times"
+      target_table: "bronze.lap_times"
+      format: "delta"
+      partition_by: ["raceId"]
+      z_order_by: ["raceId", "driverId", "lap"]
+      
+    pit_stops:
+      source_file: "pit_stops.json"
+      target_table: "bronze.pit_stops"
+      format: "delta"
+      partition_by: ["raceId"]
+      z_order_by: ["raceId", "driverId", "stop"]
+      
+    qualifying:
+      source_file: "qualifying"
+      target_table: "bronze.qualifying"
+      format: "delta"
+      partition_by: ["raceId"]
+      z_order_by: ["raceId", "driverId"]
+
+# Ingestion Configuration
+ingestion:
+  # Batch Processing
+  batch_size: 10000
+  max_files_per_batch: 50
+  
+  # Schema Handling
+  schema_evolution: true
+  column_mapping_mode: "name"
+  
+  # Performance Optimization
+  shuffle_partitions: 200
+  adaptive_query_enabled: true
+  adaptive_coalesce_partitions_enabled: true
+  
+  # File Optimization
+  max_records_per_file: 1000000
+  target_file_size_mb: 128
+
+# Data Quality Configuration
+quality:
+  enabled: true
+  fail_on_error: false
+  warning_threshold: 5.0  # percentage
+  
+  checks:
+    - name: "null_check"
+      columns: ["raceId", "driverId", "constructorId"]
+      threshold: 0.0
+      
+    - name: "row_count_check"
+      minimum_rows: 1
+      
+    - name: "duplicate_check"
+      columns: ["raceId", "driverId"]
+      threshold: 1.0
+
+# Audit Configuration
+audit:
+  enabled: true
+  columns:
+    - "ingestion_timestamp"
+    - "ingestion_date"
+    - "processing_batch_id"
+    - "source_file_name"
+    - "source_file_size"
+    - "source_file_modified"
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  metrics_collection: true
+  alert_on_failure: true
+  
+  performance_thresholds:
+    max_ingestion_time_minutes: 30
+    max_memory_usage_gb: 8
+    max_cpu_usage_percent: 80
+
+# Error Handling
+error_handling:
+  max_retries: 3
+  retry_delay_seconds: 30
+  dead_letter_path: "data/bronze/dead_letter"
+  
+  quarantine:
+    enabled: true
+    path: "data/bronze/quarantine"
+
+# Retention Policy
+retention:
+  enabled: true
+  default_retention_days: 365
+  
+  # Time Travel Configuration
+  time_travel:
+    enabled: true
+    default_retention_hours: 168  # 7 days
+    
+  # Vacuum Configuration
+  vacuum:
+    enabled: true
+    retention_hours: 168
+    schedule: "weekly"
+
+# Security Configuration
+security:
+  encryption:
+    enabled: false
+    algorithm: "AES256"
+    
+  access_control:
+    enabled: false
+    roles: ["bronze_read", "bronze_write"]
+
+# Notification Configuration
+notifications:
+  enabled: true
+  
+  email:
+    enabled: false
+    smtp_server: ""
+    recipients: []
+    
+  slack:
+    enabled: false
+    webhook_url: ""
+    channel: "#f1-data-pipelines"
