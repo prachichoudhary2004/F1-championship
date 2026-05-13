@@ -1,8 +1,7 @@
-# 🏁 F1 Race Intelligence Lakehouse
+# 🏁 F1 CHAMPIONSHIP ANALYTICS
 
 <div align="center">
 
-![F1 Race Intelligence](https://img.shields.io/badge/F1-Race-Intelligence-blue?style=for-the-badge&logo=formula1)
 ![Apache Spark](https://img.shields.io/badge/Apache%20Spark-3.4+-orange?style=for-the-badge&logo=apachespark)
 ![Delta Lake](https://img.shields.io/badge/Delta%20Lake-2.4+-green?style=for-the-badge&logo=deltalake)
 ![Databricks](https://img.shields.io/badge/Databricks-Enterprise-red?style=for-the-badge&logo=databricks)
@@ -11,9 +10,6 @@
 **Advanced Analytics Engineering Platform with Machine Learning and Business Intelligence**
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-[ Documentation](docs/) | [🚀 Getting Started](#quick-start) | [🤝 Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -412,49 +408,3 @@ kubectl apply -f k8s/monitoring/
 ```
 
 ---
-
-## 📚 Documentation
-
-### Comprehensive Documentation
-
-- **[Architecture Guide](docs/architecture.md)**: System design and principles
-- **[Medallion Design](docs/medallion_design.md)**: Data architecture patterns
-- **[Pipeline Documentation](docs/pipeline_flow.md)**: ETL workflow details
-- **[Dashboard Guide](docs/dashboard_guide.md)**: BI user guide
-- **[ML Model Documentation](docs/ml_models.md)**: Machine learning details
-
----
-
-## 🤝 Contributing
-
-We welcome contributions to F1 Race Intelligence Lakehouse! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### How to Contribute
-
-1. **Fork repository**
-2. **Create a feature branch**
-3. **Make your changes**
-4. **Add tests and documentation**
-5. **Submit a pull request**
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
----
-
-<div align="center">
-
-**🏁 Built with passion for Formula 1 and data engineering excellence 🏁**
-
-[⭐ Star this repository](https://github.com/f1-intelligence/lakehouse) | [🍴 Fork on GitHub](https://github.com/f1-intelligence/lakehouse/fork)
-
----
-
-*"Data is the new fuel for racing success"* - F1 Intelligence Team
-
-</div>
