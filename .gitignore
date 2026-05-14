@@ -67,14 +67,13 @@ logs/
 *.log.*
 
 # Data Files (keep structure, ignore contents)
-data/raw/*.csv
-data/raw/*.json
-data/bronze/*
-data/silver/*
-data/gold/*
-!data/bronze/.gitkeep
-!data/silver/.gitkeep
-!data/gold/.gitkeep
+data/**
+!data/raw/
+!data/bronze/
+!data/silver/
+!data/gold/
+!**/README.md
+!**/.gitkeep
 
 # Models
 models/

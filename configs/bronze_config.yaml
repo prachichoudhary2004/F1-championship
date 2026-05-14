@@ -18,6 +18,7 @@ bronze:
   tables:
     races:
       source_file: "races.csv"
+      source_format: "csv"
       target_table: "bronze.races"
       format: "delta"
       partition_by: ["year"]
@@ -25,6 +26,7 @@ bronze:
       
     drivers:
       source_file: "drivers.json"
+      source_format: "json"
       target_table: "bronze.drivers"
       format: "delta"
       partition_by: []
@@ -32,6 +34,7 @@ bronze:
       
     constructors:
       source_file: "constructors.json"
+      source_format: "json"
       target_table: "bronze.constructors"
       format: "delta"
       partition_by: []
@@ -39,6 +42,7 @@ bronze:
       
     circuits:
       source_file: "circuits.csv"
+      source_format: "csv"
       target_table: "bronze.circuits"
       format: "delta"
       partition_by: []
@@ -46,6 +50,7 @@ bronze:
       
     results:
       source_file: "results.json"
+      source_format: "json"
       target_table: "bronze.results"
       format: "delta"
       partition_by: ["raceId"]
@@ -53,6 +58,7 @@ bronze:
       
     lap_times:
       source_file: "lap_times"
+      source_format: "csv"
       target_table: "bronze.lap_times"
       format: "delta"
       partition_by: ["raceId"]
@@ -60,6 +66,7 @@ bronze:
       
     pit_stops:
       source_file: "pit_stops.json"
+      source_format: "json"
       target_table: "bronze.pit_stops"
       format: "delta"
       partition_by: ["raceId"]
@@ -67,6 +74,7 @@ bronze:
       
     qualifying:
       source_file: "qualifying"
+      source_format: "json"
       target_table: "bronze.qualifying"
       format: "delta"
       partition_by: ["raceId"]

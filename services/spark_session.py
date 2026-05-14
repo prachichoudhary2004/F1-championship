@@ -36,7 +36,8 @@ class F1SparkSessionManager:
         builder = SparkSession.builder.appName(self.app_name)
         
         # Delta Lake configuration
-        builder = builder.config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+        builder = builder.config("spark.jars.packages", "io.delta:delta-core_2.12:2.4.0") \
+                         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
                          .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
                          .config("spark.databricks.delta.retentionDurationCheck.enabled", "false") \
                          .config("spark.databricks.delta.schema.autoMerge.enabled", "true")
