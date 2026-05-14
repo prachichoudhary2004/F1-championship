@@ -234,18 +234,22 @@ class F1GoldPipeline:
                 lap_times_df = self.spark.read.format("delta").load("data/bronze/lap_times")
                 
                 # Join performance with lap times
-                race_pace = performance_df.join(lap_times_df, 
-                                               (performance_df.raceId == lap_times_df.raceId) & 
-                                               (performance_df.driverId == lap_times_df.driverId),
-                                               "left")
+                race_pace = performance_df.alias("perf").join(
+                    lap_times_df.alias("laps"), 
+                    (col("perf.raceId") == col("laps.raceId")) & 
+                    (col("perf.driverId") == col("laps.driverId")),
+                    "left"
+                )
                 
                 # Race pace aggregations
-                race_pace_analysis = race_pace.groupBy("raceId", "year", "driverId", "constructorId", "position") \
-                    .agg(
-                        avg("lap_times.milliseconds").alias("average_race_lap_time"),
-                        min("lap_times.milliseconds").alias("fastest_race_lap"),
-                        max("lap_times.lap").alias("total_race_laps")
-                    )
+                race_pace_analysis = race_pace.groupBy(
+                    col("perf.raceId"), col("perf.year"), col("perf.driverId"), 
+                    col("perf.constructorId"), col("perf.position")
+                ).agg(
+                    avg(col("laps.milliseconds")).alias("average_race_lap_time"),
+                    min(col("laps.milliseconds")).alias("fastest_race_lap"),
+                    max(col("laps.lap")).alias("total_race_laps")
+                )
                 
                 # Add derived metrics
                 race_pace_analysis = race_pace_analysis.withColumn("race_finish_time", 
@@ -339,35 +343,38 @@ class F1GoldPipeline:
                 performance_df = self.spark.read.format("delta").load("data/silver/performance")
                 
                 # Join qualifying with race results
-                qual_vs_race = qualifying_df.join(performance_df,
-                                                 (qualifying_df.raceId == performance_df.raceId) &
-                                                 (qualifying_df.driverId == performance_df.driverId),
-                                                 "inner")
+                qual_vs_race = qualifying_df.alias("qual").join(
+                    performance_df.alias("perf"),
+                    (col("qual.raceId") == col("perf.raceId")) &
+                    (col("qual.driverId") == col("perf.driverId")),
+                    "inner"
+                )
                 
                 # Calculate position changes
-                qual_vs_race = qual_vs_race.withColumn("qualifying_position", col("position")) \
-                                          .withColumn("race_position", col("performance.position")) \
-                                          .withColumn("position_change", col("qualifying_position") - col("race_position")) \
+                qual_vs_race = qual_vs_race.withColumn("qual_pos", col("qual.position")) \
+                                          .withColumn("race_pos", col("perf.position")) \
+                                          .withColumn("position_change", col("qual_pos") - col("race_pos")) \
                                           .withColumn("overtakes_made",
-                                                     when(col("qualifying_position") > col("race_position"),
-                                                          col("qualifying_position") - col("race_position"))
+                                                     when(col("qual_pos") > col("race_pos"),
+                                                          col("qual_pos") - col("race_pos"))
                                                      .otherwise(0)) \
                                           .withColumn("positions_lost",
-                                                     when(col("qualifying_position") < col("race_position"),
-                                                          col("race_position") - col("qualifying_position"))
+                                                     when(col("qual_pos") < col("race_pos"),
+                                                          col("race_pos") - col("qual_pos"))
                                                      .otherwise(0))
                 
                 # Add qualifying performance score
                 qual_vs_race = qual_vs_race.withColumn("qualifying_performance_score",
-                                                       when(col("qualifying_position") <= 3, 10)
-                                                       .when(col("qualifying_position") <= 10, 5)
+                                                       when(col("qual_pos") <= 3, 10)
+                                                       .when(col("qual_pos") <= 10, 5)
                                                        .otherwise(1))
                 
                 # Select relevant columns
                 qual_vs_race = qual_vs_race.select(
-                    "raceId", "year", "driverId", "constructorId",
-                    "qualifying_position", "race_position", "position_change",
-                    "overtakes_made", "positions_lost", "qualifying_performance_score",
+                    col("qual.raceId"), col("perf.year"), col("qual.driverId"), col("perf.constructorId"),
+                    col("qual_pos").alias("qualifying_position"), 
+                    col("race_pos").alias("race_position"), 
+                    "position_change", "overtakes_made", "positions_lost", "qualifying_performance_score",
                     "forename", "surname", "nationality",
                     "constructorName", "constructorNationality"
                 )

@@ -120,7 +120,7 @@ class F1BronzeIngestionPipeline:
             self.logger.info(f"Starting ingestion for table: {table_name}")
             
             # Read source data
-            df = self._read_source_data(source_file)
+            df = self._read_source_data(table_config)
             
             if df is None or df.count() == 0:
                 self.logger.warning(f"No data found for table: {table_name}")
@@ -155,16 +155,19 @@ class F1BronzeIngestionPipeline:
             self.logger.error(f"Failed to ingest table {table_name}: {str(e)}")
             return False
     
-    def _read_source_data(self, source_file: str) -> Optional[DataFrame]:
+    def _read_source_data(self, table_config: Dict[str, Any]) -> Optional[DataFrame]:
         """
         Read source data from file
         
         Args:
-            source_file: Source file path
+            table_config: Table configuration
             
         Returns:
             DataFrame or None if failed
         """
+        source_file = table_config['source_file']
+        source_format = table_config.get('source_format')
+        
         try:
             source_path = os.path.join(
                 self.config['bronze']['source']['raw_data_path'],
@@ -175,19 +178,21 @@ class F1BronzeIngestionPipeline:
                 self.logger.error(f"Source file not found: {source_path}")
                 return None
             
-            # Determine file format and read accordingly
-            if source_file.endswith('.csv'):
+            # Use explicit source_format if available, otherwise detect from extension
+            if source_format == 'csv' or (not source_format and source_file.endswith('.csv')):
                 df = self.spark.read.option("header", "true").csv(source_path)
-            elif source_file.endswith('.json'):
+            elif source_format == 'json' or (not source_format and source_file.endswith('.json')):
                 df = self.spark.read.json(source_path)
             elif os.path.isdir(source_path):
-                # Handle directory with multiple files
-                if source_file.endswith('.csv'):
+                # Fallback for directories without explicit format
+                # We'll try to peek at the first file if possible, or default to JSON
+                files = os.listdir(source_path)
+                if any(f.endswith('.csv') for f in files):
                     df = self.spark.read.option("header", "true").csv(source_path)
                 else:
                     df = self.spark.read.json(source_path)
             else:
-                self.logger.error(f"Unsupported file format: {source_file}")
+                self.logger.error(f"Unsupported file format for: {source_file}")
                 return None
             
             self.logger.info(f"Read {df.count()} rows from {source_path}")

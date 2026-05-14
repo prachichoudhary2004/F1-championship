@@ -185,7 +185,7 @@ class F1BronzePipeline:
         try:
             with PipelineLogger("Bronze Lap Times Processing", self.logger):
                 # Read raw data (multiple files)
-                lap_times_df = self.spark.read.json("data/raw/lap_times")
+                lap_times_df = self.spark.read.option("header", "true").csv("data/raw/lap_times")
                 
                 # Add audit columns
                 lap_times_df = lap_times_df.withColumn("ingestion_timestamp", current_timestamp()) \
