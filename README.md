@@ -141,6 +141,3 @@ This project demonstrates end-to-end expertise in:
 - **Full-Stack Data**: FastAPI integration and Streamlit UI engineering.
 
 ---
-
-## 📝 License
-MIT License - Designed for the Formula 1 Strategy & Performance Community.
